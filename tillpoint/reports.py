@@ -1,3 +1,4 @@
+
 """Sales reports for the shop owner."""
 from datetime import datetime, timedelta, timezone
 
@@ -6,8 +7,11 @@ from . import db
 
 def day_bounds_utc(day, utc_offset_minutes=0):
     """The UTC instants at which a shop-local calendar day starts and ends. day is 'YYYY-MM-DD'."""
-    start = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    start += timedelta(minutes=utc_offset_minutes)
+    local_start = datetime.strptime(day, "%Y-%m-%d").replace(
+        tzinfo=timezone.utc
+    )
+    start = local_start - timedelta(minutes=utc_offset_minutes)
+
     return db.to_iso(start), db.to_iso(start + timedelta(days=1))
 
 
@@ -19,7 +23,11 @@ def daily_sales(conn, day, utc_offset_minutes=0):
         " FROM payments WHERE received_at >= ? AND received_at < ?",
         (start, end),
     ).fetchone()
-    return {"day": day, "revenue_cents": row["revenue"], "orders": row["orders"]}
+    return {
+        "day": day,
+        "revenue_cents": row["revenue"],
+        "orders": row["orders"],
+    }
 
 
 def top_products(conn, limit=5):
