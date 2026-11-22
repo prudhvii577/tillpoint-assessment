@@ -1,3 +1,4 @@
+
 """SQLite storage. All money is integer cents; all timestamps are UTC ISO-8601 strings."""
 import sqlite3
 from datetime import datetime, timezone
@@ -42,8 +43,15 @@ CREATE TABLE IF NOT EXISTS payments (
     amount_cents INTEGER NOT NULL,
     received_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
-CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_payments_order
+ON payments(order_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_event_id
+ON payments(event_id);
+
+CREATE INDEX IF NOT EXISTS idx_orders_customer
+ON orders(customer, created_at);
 """
 
 
@@ -64,4 +72,6 @@ def to_iso(dt):
 
 
 def from_iso(text):
-    return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return datetime.strptime(
+        text, "%Y-%m-%dT%H:%M:%SZ"
+    ).replace(tzinfo=timezone.utc)

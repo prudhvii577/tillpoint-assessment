@@ -1,3 +1,4 @@
+
 import unittest
 from datetime import datetime, timezone
 
@@ -12,17 +13,23 @@ class OrderDeskTest(unittest.TestCase):
         self.app = App(self.conn)
         self.app.catalog.add_product("MUG", "Mug", 1200, stock=10)
         self.app.catalog.add_product("TEE", "T-shirt", 2500, stock=3)
-        self.conn.execute("INSERT INTO coupons (code, kind, value) VALUES ('TEN', 'percent', 10)")
+        self.conn.execute(
+            "INSERT INTO coupons (code, kind, value) VALUES ('TEN', 'percent', 10)"
+        )
 
     def test_order_totals_with_tax(self):
-        order = self.app.orders.create("ana", [("MUG", 2), ("TEE", 1)], region="CA")
+        order = self.app.orders.create(
+            "ana", [("MUG", 2), ("TEE", 1)], region="CA"
+        )
         self.assertEqual(order["subtotal_cents"], 4900)
         self.assertEqual(order["tax_cents"], 355)
         self.assertEqual(order["total_cents"], 5255)
         self.assertEqual(self.app.catalog.get_product("MUG").stock, 8)
 
     def test_coupon_takes_ten_percent(self):
-        order = self.app.orders.create("ana", [("MUG", 1)], coupon_code="TEN")
+        order = self.app.orders.create(
+            "ana", [("MUG", 1)], coupon_code="TEN"
+        )
         self.assertEqual(order["discount_cents"], 120)
         self.assertEqual(order["total_cents"], 1080)
 
@@ -33,14 +40,28 @@ class OrderDeskTest(unittest.TestCase):
 
     def test_payment_marks_order_paid(self):
         order = self.app.orders.create("ana", [("MUG", 1)])
-        status, payload = self.app.handle("POST", "/webhooks/payments", {
-            "id": "evt_1", "type": "payment.succeeded", "order_id": order["id"], "amount_cents": 1200})
+        status, payload = self.app.handle(
+            "POST",
+            "/webhooks/payments",
+            {
+                "id": "evt_1",
+                "type": "payment.succeeded",
+                "order_id": order["id"],
+                "amount_cents": 1200
+            }
+        )
         self.assertEqual((status, payload["status"]), (200, "paid"))
 
     def test_cancel_paid_order_restocks(self):
         order = self.app.orders.create("ana", [("TEE", 2)])
         self.app.payments.handle_event(
-            {"id": "evt_2", "type": "payment.succeeded", "order_id": order["id"], "amount_cents": 5000})
+            {
+                "id": "evt_2",
+                "type": "payment.succeeded",
+                "order_id": order["id"],
+                "amount_cents": 5000
+            }
+        )
         self.app.orders.cancel(order["id"])
         self.assertEqual(self.app.catalog.get_product("TEE").stock, 3)
 
@@ -48,13 +69,53 @@ class OrderDeskTest(unittest.TestCase):
         order = self.app.orders.create("ana", [("MUG", 1)])
         noon = datetime(2025, 3, 10, 12, 0, tzinfo=timezone.utc)
         self.app.payments.handle_event(
-            {"id": "evt_3", "type": "payment.succeeded", "order_id": order["id"], "amount_cents": 1200}, now=noon)
-        self.assertEqual(reports.daily_sales(self.conn, "2025-03-10"),
-                         {"day": "2025-03-10", "revenue_cents": 1200, "orders": 1})
+            {
+                "id": "evt_3",
+                "type": "payment.succeeded",
+                "order_id": order["id"],
+                "amount_cents": 1200
+            },
+            now=noon
+        )
+        self.assertEqual(
+            reports.daily_sales(self.conn, "2025-03-10"),
+            {
+                "day": "2025-03-10",
+                "revenue_cents": 1200,
+                "orders": 1
+            }
+        )
+
+    def test_duplicate_webhook_does_not_duplicate_payment(self):
+        order = self.app.orders.create("ana", [("MUG", 1)])
+
+        event = {
+            "id": "evt_duplicate",
+            "type": "payment.succeeded",
+            "order_id": order["id"],
+            "amount_cents": order["total_cents"]
+        }
+
+        self.app.payments.handle_event(event)
+        self.app.payments.handle_event(event)
+
+        self.assertEqual(
+            self.app.payments.paid_cents(order["id"]),
+            order["total_cents"]
+        )
+
+        count = self.conn.execute(
+            "SELECT COUNT(*) FROM payments WHERE event_id = ?",
+            ("evt_duplicate",)
+        ).fetchone()[0]
+
+        self.assertEqual(count, 1)
 
     def test_price_change(self):
         self.app.handle("PUT", "/products/MUG", {"price_cents": 1500})
-        self.assertEqual(self.app.catalog.get_product("MUG").price_cents, 1500)
+        self.assertEqual(
+            self.app.catalog.get_product("MUG").price_cents, 1500
+        )
 
 
 if __name__ == "__main__":
