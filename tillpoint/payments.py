@@ -12,7 +12,7 @@ class Payments:
         self.conn = conn
 
     def handle_event(self, event, now=None):
-        """event: dict(id, type, order_id, amount_cents). Returns the order's status after the event."""
+        """Record successful payments and identify orders that receive excess payment."""
         if event.get("type") != "payment.succeeded":
             return None
 
@@ -41,17 +41,26 @@ class Payments:
             ),
         )
 
+        # Ignore repeated delivery of the same provider event.
         if cursor.rowcount == 0:
             return order["status"]
 
-        if order["status"] == "pending" and self.paid_cents(order["id"]) >= order["total_cents"]:
-            self.conn.execute(
-                "UPDATE orders SET status = 'paid' WHERE id = ?",
-                (order["id"],)
-            )
-            return "paid"
+        total_paid = self.paid_cents(order["id"])
+        total_due = order["total_cents"]
 
-        return order["status"]
+        if total_paid > total_due:
+            new_status = "overpaid"
+        elif total_paid >= total_due and order["status"] == "pending":
+            new_status = "paid"
+        else:
+            return order["status"]
+
+        self.conn.execute(
+            "UPDATE orders SET status = ? WHERE id = ?",
+            (new_status, order["id"])
+        )
+
+        return new_status
 
     def paid_cents(self, order_id):
         row = self.conn.execute(

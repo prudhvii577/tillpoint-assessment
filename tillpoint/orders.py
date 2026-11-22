@@ -56,7 +56,7 @@ class Orders:
             if order["status"] == "shipped":
                 raise OrderError("a shipped order cannot be cancelled")
 
-            if order["status"] in ("pending", "paid"):
+            if order["status"] in ("pending", "paid", "overpaid"):
                 for item in order["items"]:
                     self.catalog.release(item["sku"], item["qty"])
 

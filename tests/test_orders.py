@@ -117,7 +117,6 @@ class OrderDeskTest(unittest.TestCase):
             self.app.catalog.get_product("MUG").price_cents, 1500
         )
 
-    
     def test_cancel_pending_order_restores_stock(self):
         order = self.app.orders.create("ana", [("TEE", 2)])
 
@@ -127,7 +126,6 @@ class OrderDeskTest(unittest.TestCase):
 
         self.assertEqual(self.app.catalog.get_product("TEE").stock, 3)
 
-    
     def test_coupon_discount_is_applied_before_tax(self):
         order = self.app.orders.create(
             "ana",
@@ -141,7 +139,6 @@ class OrderDeskTest(unittest.TestCase):
         self.assertEqual(order["tax_cents"], 78)
         self.assertEqual(order["total_cents"], 1158)
 
-    
     def test_daily_sales_uses_india_timezone(self):
         order = self.app.orders.create("ana", [("MUG", 1)])
 
@@ -174,12 +171,9 @@ class OrderDeskTest(unittest.TestCase):
             },
         )
 
-    
     def test_concurrent_stock_change_does_not_allow_negative_stock(self):
-        # Load the product into the catalog cache.
         self.app.catalog.get_product("TEE")
 
-        # Simulate another worker taking all available stock.
         self.conn.execute(
             "UPDATE products SET stock = 0 WHERE sku = 'TEE'"
         )
@@ -192,6 +186,75 @@ class OrderDeskTest(unittest.TestCase):
         ).fetchone()["stock"]
 
         self.assertEqual(stock, 0)
+
+    def test_separate_second_payment_marks_order_overpaid(self):
+        order = self.app.orders.create("ana", [("MUG", 1)])
+
+        first_payment = {
+            "id": "evt_first",
+            "type": "payment.succeeded",
+            "order_id": order["id"],
+            "amount_cents": order["total_cents"],
+        }
+
+        second_payment = {
+            "id": "evt_second",
+            "type": "payment.succeeded",
+            "order_id": order["id"],
+            "amount_cents": order["total_cents"],
+        }
+
+        self.app.payments.handle_event(first_payment)
+        result = self.app.payments.handle_event(second_payment)
+
+        self.assertEqual(result, "overpaid")
+
+        self.assertEqual(
+            self.app.payments.paid_cents(order["id"]),
+            order["total_cents"] * 2,
+        )
+
+        status = self.conn.execute(
+            "SELECT status FROM orders WHERE id = ?",
+            (order["id"],),
+        ).fetchone()["status"]
+
+        self.assertEqual(status, "overpaid")
+
+        count = self.conn.execute(
+            "SELECT COUNT(*) FROM payments WHERE order_id = ?",
+            (order["id"],),
+        ).fetchone()[0]
+
+        self.assertEqual(count, 2)
+
+    def test_cancel_overpaid_order_restores_stock(self):
+        order = self.app.orders.create("ana", [("TEE", 2)])
+
+        self.app.payments.handle_event(
+            {
+                "id": "evt_overpaid_first",
+                "type": "payment.succeeded",
+                "order_id": order["id"],
+                "amount_cents": order["total_cents"],
+            }
+        )
+
+        self.app.payments.handle_event(
+            {
+                "id": "evt_overpaid_second",
+                "type": "payment.succeeded",
+                "order_id": order["id"],
+                "amount_cents": order["total_cents"],
+            }
+        )
+
+        self.app.orders.cancel(order["id"])
+
+        self.assertEqual(
+            self.app.catalog.get_product("TEE").stock,
+            3,
+        )
 
 
 if __name__ == "__main__":
