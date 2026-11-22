@@ -1,9 +1,11 @@
-# session_logs/
+# Session Logs
 
-Put the full export of every AI session you used for this assignment in this folder, next to this file.
+This folder contains the AI session records for the engineering assessment.
 
-- One file per session; several files are expected if you used several sessions or tools.
-- The raw export (`.jsonl`, `.json`) is best; a markdown export is fine. How to export: see "Exporting AI session logs" in `CANDIDATE_BRIEF.md`.
-- From the first prompt to the last. Do not edit or shorten them; remove only secrets, API keys and personal data.
+## AI tools used
 
-A submission with no session log in this folder is not graded. You can leave this README here.
+- ChatGPT: Used for discussing reported issues, understanding root causes, planning fixes, writing and reviewing tests, and preparing assessment notes.
+
+## Session files
+
+- `chatgpt_session.md` — Complete ChatGPT conversation log related to this assessment.
