@@ -117,6 +117,16 @@ class OrderDeskTest(unittest.TestCase):
             self.app.catalog.get_product("MUG").price_cents, 1500
         )
 
+    
+    def test_cancel_pending_order_restores_stock(self):
+        order = self.app.orders.create("ana", [("TEE", 2)])
+
+        self.assertEqual(self.app.catalog.get_product("TEE").stock, 1)
+
+        self.app.orders.cancel(order["id"])
+
+        self.assertEqual(self.app.catalog.get_product("TEE").stock, 3)
+
 
 if __name__ == "__main__":
     unittest.main()
