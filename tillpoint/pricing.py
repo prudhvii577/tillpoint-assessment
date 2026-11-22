@@ -1,3 +1,4 @@
+
 """Order maths: subtotal, coupon discount, tax, total. Integer cents throughout."""
 
 # Sales tax in basis points (1/100 of a percent) by region.
@@ -18,7 +19,9 @@ def discount_for(coupon, subtotal_cents):
     if coupon is None:
         return 0
     if subtotal_cents < coupon["min_subtotal_cents"]:
-        raise CouponRejected(f"{coupon['code']} needs a subtotal of at least {coupon['min_subtotal_cents']}")
+        raise CouponRejected(
+            f"{coupon['code']} needs a subtotal of at least {coupon['min_subtotal_cents']}"
+        )
     if coupon["max_uses"] is not None and coupon["uses"] >= coupon["max_uses"]:
         raise CouponRejected(f"{coupon['code']} has been used up")
     if coupon["kind"] == "percent":
@@ -41,11 +44,14 @@ def round_half_up(numerator, denominator):
 def price_order(lines, region, coupon=None):
     """Return dict(subtotal_cents, discount_cents, tax_cents, total_cents)."""
     sub = subtotal(lines)
-    tax = tax_for(sub, region)
     discount = discount_for(coupon, sub)
+
+    taxable_cents = sub - discount
+    tax = tax_for(taxable_cents, region)
+
     return {
         "subtotal_cents": sub,
         "discount_cents": discount,
         "tax_cents": tax,
-        "total_cents": sub - discount + tax,
+        "total_cents": taxable_cents + tax,
     }

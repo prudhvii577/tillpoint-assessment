@@ -127,6 +127,20 @@ class OrderDeskTest(unittest.TestCase):
 
         self.assertEqual(self.app.catalog.get_product("TEE").stock, 3)
 
+    
+    def test_coupon_discount_is_applied_before_tax(self):
+        order = self.app.orders.create(
+            "ana",
+            [("MUG", 1)],
+            region="CA",
+            coupon_code="TEN"
+        )
+
+        self.assertEqual(order["subtotal_cents"], 1200)
+        self.assertEqual(order["discount_cents"], 120)
+        self.assertEqual(order["tax_cents"], 78)
+        self.assertEqual(order["total_cents"], 1158)
+
 
 if __name__ == "__main__":
     unittest.main()
