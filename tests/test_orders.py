@@ -174,6 +174,25 @@ class OrderDeskTest(unittest.TestCase):
             },
         )
 
+    
+    def test_concurrent_stock_change_does_not_allow_negative_stock(self):
+        # Load the product into the catalog cache.
+        self.app.catalog.get_product("TEE")
+
+        # Simulate another worker taking all available stock.
+        self.conn.execute(
+            "UPDATE products SET stock = 0 WHERE sku = 'TEE'"
+        )
+
+        with self.assertRaises(OutOfStock):
+            self.app.catalog.reserve("TEE", 1)
+
+        stock = self.conn.execute(
+            "SELECT stock FROM products WHERE sku = 'TEE'"
+        ).fetchone()["stock"]
+
+        self.assertEqual(stock, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
